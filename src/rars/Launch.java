@@ -230,6 +230,12 @@ public class Launch {
                 });
                 try{
                     CommandSession result = future.get(5, TimeUnit.SECONDS);
+                    if(result.STDOUT == null){
+                        result.STDOUT = "";
+                    }
+                    if(result.STDERR == null){
+                        result.STDERR = "";
+                    }
                     System.out.print("STDOUT=" + URLEncoder.encode(result.STDOUT, StandardCharsets.UTF_8)+ " ");
                     System.out.print("STDERR=" + URLEncoder.encode(result.STDERR, StandardCharsets.UTF_8)+ " ");
                     System.out.print("EXIT_CODE=" + result.EXIT_CODE+" ");
