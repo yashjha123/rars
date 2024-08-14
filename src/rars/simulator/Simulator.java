@@ -1,17 +1,16 @@
 package rars.simulator;
 
-import rars.*;
-import rars.riscv.hardware.*;
-import rars.riscv.BasicInstruction;
-import rars.riscv.Instruction;
-import rars.util.Binary;
-import rars.util.SystemIO;
-import rars.venus.run.RunSpeedPanel;
-
-import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Observable;
+import javax.swing.*;
+import rars.*;
+import rars.riscv.BasicInstruction;
+import rars.riscv.Instruction;
+import rars.riscv.hardware.*;
+import rars.util.Binary;
+import rars.util.SystemIO;
+import rars.venus.run.RunSpeedPanel;
 
 	/*
 Copyright (c) 2003-2010,  Pete Sanderson and Kenneth Vollmar
@@ -444,6 +443,10 @@ public class Simulator extends Observable {
                             stopExecution(false, Reason.MAX_STEPS);
                             return;
                         }
+                    }
+                    if (Thread.currentThread().isInterrupted()) {
+                        stopExecution(false, Reason.STOP);
+                        return;
                     }
 
                     pc = RegisterFile.getProgramCounter();

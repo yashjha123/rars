@@ -1,12 +1,11 @@
 package rars.simulator;
 
+import java.util.ArrayList;
+import java.util.StringTokenizer;
 import rars.Globals;
 import rars.riscv.hardware.AddressErrorException;
 import rars.riscv.hardware.Memory;
 import rars.riscv.hardware.RegisterFile;
-
-import java.util.ArrayList;
-import java.util.StringTokenizer;
 
 	/*
 Copyright (c) 2003-2008,  Pete Sanderson and Kenneth Vollmar
@@ -162,6 +161,7 @@ public class ProgramArgumentList {
                 Globals.memory.set(highAddress, 0, 1);  // trailing null byte for each argument
                 highAddress--;
                 for (int j = programArgument.length() - 1; j >= 0; j--) {
+                    // System.err.println(programArgument.charAt(j));
                     Globals.memory.set(highAddress, programArgument.charAt(j), 1);
                     highAddress--;
                 }
@@ -188,6 +188,7 @@ public class ProgramArgumentList {
 
             // Need to set $sp register to stack address, $a0 to argc, $a1 to argv
             // Need to by-pass the backstepping mechanism so go directly to Register instead of RegisterFile
+            // System.err.println(argStartAddress.length);
             RegisterFile.getRegister("sp").setValue(stackAddress + Memory.WORD_LENGTH_BYTES);
             RegisterFile.getRegister("a0").setValue(argStartAddress.length); // argc
             RegisterFile.getRegister("a1").setValue(stackAddress + Memory.WORD_LENGTH_BYTES + Memory.WORD_LENGTH_BYTES); // argv

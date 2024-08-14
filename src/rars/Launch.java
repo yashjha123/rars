@@ -1,27 +1,40 @@
 package rars;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.lang.reflect.Array;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.sql.Time;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import javax.swing.*;
+import rars.api.Options;
 import rars.api.Program;
 import rars.riscv.InstructionSet;
 import rars.riscv.dump.DumpFormat;
 import rars.riscv.dump.DumpFormatLoader;
 import rars.riscv.hardware.*;
-import rars.simulator.ProgramArgumentList;
 import rars.simulator.Simulator;
 import rars.util.Binary;
 import rars.util.FilenameFinder;
 import rars.util.MemoryDump;
 import rars.venus.VenusUI;
-import rars.api.Options;
-
-import javax.swing.*;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Observable;
-import java.util.Observer;
 
 /*
 Copyright (c) 2003-2012,  Pete Sanderson and Kenneth Vollmar
@@ -57,6 +70,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * @author Pete Sanderson
  * @version December 2009
  **/
+
 
 public class Launch {
 
@@ -158,16 +172,163 @@ public class Launch {
             System.exit(Globals.exitCode);
         }
         
-        if (gui) {
-            launchIDE();
-        } else { // running from command line.
-            // assure command mode works in headless environment (generates exception if not)
-            System.setProperty("java.awt.headless", "true");
+        // if (gui) {
+        //     launchIDE();
+        // } else { // running from command line.
+        //     // assure command mode works in headless environment (generates exception if not)
+        //     System.setProperty("java.awt.headless", "true");
             
-            dumpSegments(runCommand());
-            System.exit(Globals.exitCode);
+        //     dumpSegments(runCommand());
+        //     System.exit(Globals.exitCode);
+        // }
+        Globals.initialize();
+        Globals.getSettings().setBooleanSettingNonPersistent(Settings.Bool.RV64_ENABLED,false);
+        InstructionSet.rv64 = false;
+        Globals.instructionSet.populate();
+        Options opt = new Options();
+        opt.startAtMain = true;
+        // opt.maxSteps = 1000;
+
+        // read path from stdin 
+        while (true) { 
+            
+            // System.out.println("Enter the path of the file to be assembled and run: ");
+            // String path = System.console().readLine();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            
+            try {
+                String path = reader.readLine();
+                String pa = reader.readLine();
+                // System.out.println("PATH=" + path);
+                // } 
+                // String path = "/home/cguy/rars/examples/sample.s";
+
+                // Create a fixed thread pool
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                final Future<CommandSession> future =  executor.submit(() -> {
+                    try {
+                        Program p = new Program(opt);
+                        ArrayList pas = new ArrayList<String>(Arrays.asList(pa.split("\\s+")));
+                        // p.setup(pas, null);
+                        // System.err.println(pas.get(0));
+                        CommandSession result = new CommandSession();
+                        // Thread.startVirtualThread(() -> {
+                        run(path, p, pas, result);
+                        // });
+                        // Thread.
+                        
+                        // System.err.print("STDOUT: " + result.STDOUT);
+                        // System.err.print("STDERR: " + result.STDERR);
+                        // System.err.println("EXIT_CODE: " + result.EXIT_CODE);
+                        // result.STDOUT = "x";
+                        return result;   
+                    } 
+                    catch (Exception e) {
+                        // e.printStackTrace();
+                        return null;
+                    }
+                });
+                try{
+                    CommandSession result = future.get(5, TimeUnit.SECONDS);
+                    System.out.print("STDOUT=" + URLEncoder.encode(result.STDOUT, StandardCharsets.UTF_8)+ " ");
+                    System.out.print("STDERR=" + URLEncoder.encode(result.STDERR, StandardCharsets.UTF_8)+ " ");
+                    System.out.print("EXIT_CODE=" + result.EXIT_CODE+" ");
+                    System.out.println("DONE");
+
+                } catch (TimeoutException e){
+                    e.printStackTrace();
+                    future.cancel(true);
+                    System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+ " ");
+                    System.out.print("STDERR=" + URLEncoder.encode("Program timed out", StandardCharsets.UTF_8)+ " ");
+                    System.out.print("EXIT_CODE=" + "1 ");
+                    System.out.println("DONE");
+                    // System.out.println("Timeout");
+                    // Thread.currentThread().interrupt();
+                    // System.err.println(future.cancel(true));
+                }
+                catch (Exception e){
+                    e.printStackTrace();
+                    future.cancel(true);
+                    System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+" ");
+                    System.out.print("STDERR=" + URLEncoder.encode("Internal Error! Please resubmit your solution!", StandardCharsets.UTF_8)+" ");
+                    System.out.print("EXIT_CODE=" + "1 ");
+                    System.out.println("DONE");
+                }
+                executor.shutdownNow();
+            } 
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+
+
+    public static String run(String path, Program p, ArrayList<String> programArgs, CommandSession result) {
+        String stdin = "";
+        
+        try {
+            p.assemble(path);
+            // System.err.println(programArgs);
+            // check if getSTDERR() is empty
+            // if (p.getSTDERR)
+            if (p.getSTDERR() != null){
+                result.STDERR = p.getSTDERR();
+            }
+            p.setup(programArgs, stdin);
+            // p.setup(null, stdin);
+            if (p.getSTDERR() != null){
+                result.STDERR = p.getSTDERR();
+            }
+            Simulator.Reason r = p.simulate();
+            if (p.getSTDERR() != null){
+                result.STDERR = p.getSTDERR();
+            }
+            if (p.getSTDOUT() != null){
+                // System.out.println("STDOUT=" + p.getSTDOUT());
+                result.STDOUT = p.getSTDOUT();
+            }
+
+            // result.STDOUT = p.getSTDOUT();
+            if (null != r) switch (r) {
+                case MAX_STEPS:
+                    result.EXIT_CODE = "0";
+                    result.STDERR += "Program terminated when maximum step limit reached";
+                    // result.STDOUT = p.getSTDOUT();
+                    return "Program terminated when maximum step limit reached";
+                case CLIFF_TERMINATION:
+                    result.EXIT_CODE = "0";
+                    result.STDERR += "Program terminated by dropping off the bottom";
+                    return "Program terminated by dropping off the bottom";
+                case NORMAL_TERMINATION:
+                    result.EXIT_CODE = "0";
+                    result.STDERR += "Program terminated by calling exit";
+                    return "Program terminated by calling exit";
+                case STOP:
+                    result.EXIT_CODE = "0";
+                    result.STDERR += "Program timed out";
+                    return "Program timed out";
+                default:
+                    break;
+            }
+            result.EXIT_CODE = "0";
+            return "";
+
+        } catch (AssemblyException ae){
+            result.EXIT_CODE = "1";
+            result.STDERR += "Failed to assemble " + path + "\n" + ae.errors().generateErrorAndWarningReport();
+            return "Failed to assemble " + path;
+
+        } catch (SimulationException se){
+            result.EXIT_CODE = "1";
+            result.STDERR += "Crashed while executing " + path + "\n" + se.error().generateReport();
+            return "Crashed while executing " + path;
         }
     }
+
+
+
 
     private void displayAllPostMortem(Program program) {
         displayMiscellaneousPostMortem(program);

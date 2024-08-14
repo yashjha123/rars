@@ -1,14 +1,13 @@
 package rars.api;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import rars.*;
 import rars.riscv.hardware.*;
 import rars.simulator.ProgramArgumentList;
 import rars.simulator.Simulator;
 import rars.util.SystemIO;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
 
 /**
  * <p>
@@ -195,6 +194,7 @@ public class Program {
      * @return converts the bytes sent to stdout into a string (resets to "" when setup is called)
      */
     public String getSTDOUT(){
+        if (stdout == null) return "";
         return stdout.toString();
     }
 
@@ -202,6 +202,7 @@ public class Program {
      * @return converts the bytes sent to stderr into a string (resets to "" when setup is called)
      */
     public String getSTDERR(){
+        if (stderr == null) return "";
         return stderr.toString();
     }
 
