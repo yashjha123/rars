@@ -1,8 +1,10 @@
 package rars;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -22,6 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import javax.smartcardio.CommandAPDU;
+
 
 import javax.swing.*;
 import rars.api.Options;
@@ -35,6 +39,7 @@ import rars.util.Binary;
 import rars.util.FilenameFinder;
 import rars.util.MemoryDump;
 import rars.venus.VenusUI;
+// import org.json.simple.JSONObject;
 
 /*
 Copyright (c) 2003-2012,  Pete Sanderson and Kenneth Vollmar
@@ -149,6 +154,23 @@ public class Launch {
     public static void main(String[] args){
         new Launch(args);
     }
+
+    public static void SendMessage(BufferedWriter writer, String id, CommandSession result) throws IOException {
+        try{
+            writer.write("--START--\n");
+            writer.write("ID: " +  id + "\n");
+            writer.write(result.STDOUT.length() + "\n");
+            writer.write(result.STDOUT);
+            writer.write(result.STDERR.length() + "\n");
+            writer.write(result.STDERR);
+            writer.write(result.EXIT_CODE + "\n");
+            writer.write("--END--\n");
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private Launch(String[] args) {
         Globals.initialize();
 
@@ -168,9 +190,9 @@ public class Launch {
         MemoryConfigurations.setCurrentConfiguration(MemoryConfigurations.getDefaultConfiguration());
         out = System.out;
 
-        if (!parseCommandArgs(args)) {
-            System.exit(Globals.exitCode);
-        }
+        // if (!parseCommandArgs(args)) {
+        //     System.exit(Globals.exitCode);
+        // }
         
         // if (gui) {
         //     launchIDE();
@@ -181,6 +203,19 @@ public class Launch {
         //     dumpSegments(runCommand());
         //     System.exit(Globals.exitCode);
         // }
+        // args contain the path to the output pipe. All the System.out.println will be redirected to this pipe
+        // System.out.println("ARGS=" + args[0]);
+        if (args.length == 0) {
+            System.out.println("No arguments provided");
+            System.exit(1);
+        }
+        if (args.length > 1) {
+            System.out.println("Too many arguments provided");
+            System.exit(1);
+        }
+        String output_pipe = args[0];
+        // String output_pipe = args[1];
+
         Globals.initialize();
         Globals.getSettings().setBooleanSettingNonPersistent(Settings.Bool.RV64_ENABLED,false);
         InstructionSet.rv64 = false;
@@ -190,15 +225,28 @@ public class Launch {
         // opt.maxSteps = 1000;
 
         // read path from stdin 
+        BufferedReader reader = null;
+        BufferedWriter writer = null;
+        try{
+            reader = new BufferedReader(new InputStreamReader(System.in));
+            writer = new BufferedWriter(new FileWriter(output_pipe));
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        
         while (true) { 
             
             // System.out.println("Enter the path of the file to be assembled and run: ");
             // String path = System.console().readLine();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            
             try {
+                
+                // String path
+                String id = reader.readLine();
                 String path = reader.readLine();
                 String pa = reader.readLine();
+                // send acknowldement with id
+                // writer.write(id + " " + "ACK" + "\n");
                 // System.out.println("PATH=" + path);
                 // } 
                 // String path = "/home/cguy/rars/examples/sample.s";
@@ -236,18 +284,39 @@ public class Launch {
                     if(result.STDERR == null){
                         result.STDERR = "";
                     }
-                    System.out.print("STDOUT=" + URLEncoder.encode(result.STDOUT, StandardCharsets.UTF_8)+ " ");
-                    System.out.print("STDERR=" + URLEncoder.encode(result.STDERR, StandardCharsets.UTF_8)+ " ");
-                    System.out.print("EXIT_CODE=" + result.EXIT_CODE+" ");
-                    System.out.println("DONE");
+                    // JSONObject json = new JSONObject();
+                    // writer.write("--STAR");
+                    // writer.write("--START--\n");
+                    // writer.write("ID: " +  id + "\n");
+                    // writer.write("STDOUT BYTES: "+ result.STDOUT.length() + "\n");
+                    // writer.write(result.STDOUT);
+                    // writer.write("STDERR BYTES: "+ result.STDERR.length() + "\n");
+                    // writer.write(result.STDERR);
+                    // writer.write(result.EXIT_CODE + "\n");
+                    // writer.write("--END--\n");
+                    // writer.flush();
+                    SendMessage(writer, id, result);
+
+
+                    // // writer.write("STDOUT=" + URLEncoder.encode(result.STDOUT, StandardCharsets.UTF_8)+ " ");
+                    // System.out.print("STDOUT=" + URLEncoder.encode(result.STDOUT, StandardCharsets.UTF_8)+ " ");
+                    // System.out.print("STDERR=" + URLEncoder.encode(result.STDERR, StandardCharsets.UTF_8)+ " ");
+                    // System.out.print("EXIT_CODE=" + result.EXIT_CODE+" ");
+                    // System.out.println("DONE");
 
                 } catch (TimeoutException e){
                     e.printStackTrace();
                     future.cancel(true);
-                    System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+ " ");
-                    System.out.print("STDERR=" + URLEncoder.encode("Program timed out", StandardCharsets.UTF_8)+ " ");
-                    System.out.print("EXIT_CODE=" + "1 ");
-                    System.out.println("DONE");
+                    CommandSession result = new CommandSession();
+
+                    // System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+ " ");
+                    // System.out.print("STDERR=" + URLEncoder.encode("Program timed out", StandardCharsets.UTF_8)+ " ");
+                    // System.out.print("EXIT_CODE=" + "1 ");
+                    // System.out.println("DONE");
+                    result.STDOUT = "XX";
+                    result.STDERR = "Program timed out";
+                    result.EXIT_CODE = "1";
+                    SendMessage(writer, id, result);
                     // System.out.println("Timeout");
                     // Thread.currentThread().interrupt();
                     // System.err.println(future.cancel(true));
@@ -255,10 +324,15 @@ public class Launch {
                 catch (Exception e){
                     e.printStackTrace();
                     future.cancel(true);
-                    System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+" ");
-                    System.out.print("STDERR=" + URLEncoder.encode("Internal Error! Please resubmit your solution!", StandardCharsets.UTF_8)+" ");
-                    System.out.print("EXIT_CODE=" + "1 ");
-                    System.out.println("DONE");
+                    CommandSession result = new CommandSession();
+                    // System.out.print("STDOUT=" + URLEncoder.encode("XX", StandardCharsets.UTF_8)+" ");
+                    // System.out.print("STDERR=" + URLEncoder.encode("Internal Error! Please resubmit your solution!", StandardCharsets.UTF_8)+" ");
+                    // System.out.print("EXIT_CODE=" + "1 ");
+                    // System.out.println("DONE");
+                    result.STDOUT = "XX";
+                    result.STDERR = "Internal Error! Please resubmit your solution!";
+                    result.EXIT_CODE = "1";
+                    SendMessage(writer, id, result);
                 }
                 executor.shutdownNow();
             } 
