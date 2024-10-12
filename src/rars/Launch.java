@@ -156,7 +156,10 @@ public class Launch {
     }
 
     public static void SendMessage(BufferedWriter writer, String id, CommandSession result) throws IOException {
+        
         try{
+            result.STDOUT = sanitize(result.STDOUT);
+            result.STDERR = sanitize(result.STDERR);
             writer.write("--START--\n");
             writer.write("ID: " +  id + "\n");
             writer.write(result.STDOUT.length() + "\n");
@@ -171,6 +174,10 @@ public class Launch {
         }
     }
 
+    public static String sanitize(String input) {
+        // Convert the string to ASCII bytes
+        return input.replaceAll("[^\\x00-\\x7F]", "");
+    }
     private Launch(String[] args) {
         Globals.initialize();
 
@@ -222,7 +229,7 @@ public class Launch {
         Globals.instructionSet.populate();
         Options opt = new Options();
         opt.startAtMain = true;
-        // opt.maxSteps = 1000;
+        opt.maxSteps = 50000;
 
         // read path from stdin 
         BufferedReader reader = null;
@@ -397,13 +404,18 @@ public class Launch {
 
         } catch (AssemblyException ae){
             result.EXIT_CODE = "1";
-            result.STDERR += "Failed to assemble " + path + "\n" + ae.errors().generateErrorAndWarningReport();
-            return "Failed to assemble " + path;
+            String out  = "Failed to assemble.";
+            result.STDOUT = "Failed to assemble";
+
+            result.STDERR += out.substring(0, out.length() > 255 ? 255 : out.length());
+            return "";
 
         } catch (SimulationException se){
             result.EXIT_CODE = "1";
-            result.STDERR += "Crashed while executing " + path + "\n" + se.error().generateReport();
-            return "Crashed while executing " + path;
+            String out  = "Crashed while executing";
+            result.STDOUT = "Crashed while executing";
+            result.STDERR += out.substring(0, out.length() > 255 ? 255 : out.length());
+            return "";
         }
     }
 
